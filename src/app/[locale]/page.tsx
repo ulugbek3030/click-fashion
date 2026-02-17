@@ -14,45 +14,62 @@ export default async function HomePage({ params }: HomePageProps) {
   const tNav = await getTranslations("nav");
 
   // Fetch new arrivals
-  const newProducts = await prisma.product.findMany({
-    where: { isActive: true },
-    orderBy: { createdAt: "desc" },
-    take: 8,
-    include: {
-      translations: { where: { locale } },
-      images: { orderBy: { position: "asc" }, take: 1 },
-      variants: {
-        where: { stock: { gt: 0 } },
-        include: { color: true },
+  let gridProducts: {
+    id: string;
+    slug: string;
+    name: string;
+    basePrice: number;
+    salePrice: number | null;
+    imageUrl: string;
+    imageAlt?: string;
+    isNew: boolean;
+    isFeatured: boolean;
+    colors: { hexCode: string; name: string }[];
+  }[] = [];
+
+  try {
+    const newProducts = await prisma.product.findMany({
+      where: { isActive: true },
+      orderBy: { createdAt: "desc" },
+      take: 8,
+      include: {
+        translations: { where: { locale } },
+        images: { orderBy: { position: "asc" }, take: 1 },
+        variants: {
+          where: { stock: { gt: 0 } },
+          include: { color: true },
+        },
       },
-    },
-  });
+    });
 
-  const gridProducts = newProducts.map((p) => {
-    const translation = p.translations[0];
-    const uniqueColors = new Map<string, { hexCode: string; name: string }>();
-    for (const v of p.variants) {
-      if (!uniqueColors.has(v.color.id)) {
-        uniqueColors.set(v.color.id, {
-          hexCode: v.color.hexCode,
-          name: v.color.name,
-        });
+    gridProducts = newProducts.map((p) => {
+      const translation = p.translations[0];
+      const uniqueColors = new Map<string, { hexCode: string; name: string }>();
+      for (const v of p.variants) {
+        if (!uniqueColors.has(v.color.id)) {
+          uniqueColors.set(v.color.id, {
+            hexCode: v.color.hexCode,
+            name: v.color.name,
+          });
+        }
       }
-    }
 
-    return {
-      id: p.id,
-      slug: translation?.slug || p.sku,
-      name: translation?.name || p.sku,
-      basePrice: p.basePrice,
-      salePrice: p.salePrice,
-      imageUrl: p.images[0]?.url || "",
-      imageAlt: p.images[0]?.alt || undefined,
-      isNew: p.isNew,
-      isFeatured: p.isFeatured,
-      colors: Array.from(uniqueColors.values()),
-    };
-  });
+      return {
+        id: p.id,
+        slug: translation?.slug || p.sku,
+        name: translation?.name || p.sku,
+        basePrice: p.basePrice,
+        salePrice: p.salePrice,
+        imageUrl: p.images[0]?.url || "",
+        imageAlt: p.images[0]?.alt || undefined,
+        isNew: p.isNew,
+        isFeatured: p.isFeatured,
+        colors: Array.from(uniqueColors.values()),
+      };
+    });
+  } catch (error) {
+    console.error("Failed to fetch products:", error);
+  }
 
   return (
     <div>
